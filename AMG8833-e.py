@@ -9,16 +9,13 @@ import csv                          # CSVモジュールを扱う
 import datetime                    # 日付、時間を扱う
 from GridEye import GridEye       # GrideEyeモジュールを扱う
 
-i2c = smbus.SMBus(2)                # Get I2C bus
 addr=0x68                           # slave address:68 hex
 REG_TOOL = 0x0E                     # サーミスタ出力値（下位）
 REG_PIXL = 0x80                     # 画素出力値（下位）
-
 myeye = GridEye()            # 変数名
 
 temp_min = 20.               # 最小温度
 temp_max = 30.               # 最高温度
-
 img_edge = 256               # 画素値(0〜255画素値,Pixcel value)
 
 #i2c.write_byte_data(addr,0x02,0x01) #フレームレート設定（0x00:10fps,0x01:1fps)
@@ -37,24 +34,42 @@ pixelOut_data=[]
 timecount=0
 
 while(True):  # 繰り返し処理
-    #print ('Thermistor Temp:', myeye.thermistorTemp())
+    print ('Thermistor Temp:', myeye.thermistorTemp())
     timestamp = datetime.datetime.now()   # 現在の日付、現在時刻の取得,スタンプ
     print(timestamp)                       # timestampを出力する
     Atemp = myeye.thermistorTemp()
     ObjectTemp_all = myeye.pixelOut()
+    pixel = np.array(myeye.pixelOut())           # 多次元配列で,GridEyeモジュールのpixel out関数を扱う
     ObjectTemp_all =np.array(ObjectTemp_all).reshape(8,8)
+    timecount += 1                                # timecountを1増やす
+    # indexへAmbient_tempdata,interval,Object_tempdataを追加する
+    Atemp_data.append(round(Atemp,2 ))
+    interval.append(timecount)
+    pixelOut_data.append(ObjectTemp_all)
+    # dataへtimestamp,timecount,AmbientTemp,2,ObjectTemp1,2を入力する
+    data = [timestamp,timecount,Atemp_data,pixelOut_data]	
+    # data,("-----")を出力する
+    # print('data',data)
+    # print('-----')
+    # hikaru.csvファイルへ改行し、行を詰めて書き込みます
+    # newlineはファイルの改行コードを指定する引数です
+    # dataへ書き込みます
+    writer = csv.writer(open('rion.csv','a',newline=''))
+    writer.writerow(data)	
+    # cpuに0.85秒間while処理を停止させ、他の処理をさせる　これがないと計算処理に大半を費やす
+    time.sleep(0.75) 
     
     pixel = np.array(myeye.pixelOut())           # 多次元配列で,GridEyeモジュールのpixel out関数を扱う
     pixel.resize((8, 8))                          # pixelサイズは横8,縦8
     
     if pixel.max() - pixel.min() > 9.0:           # もし,pixel最高-最低の値が9.0より大きい場合
-        print (pixel.max() - pixel.min())         # print出力
-
+	    print (pixel.max() - pixel.min())         # print出力
+	    
     temp_min = temp_min * 0.9 + pixel.min() * 0.1 # temp_min = 20*0.9+pixel.min*0.1
     temp_max = temp_max * 0.9 + pixel.max() * 0.1 # temp_max = 30*0.9+pixel.max*0.1
-    if temp_max < 30:                             # もし、30以内ならば
-        temp_max = 30                             # temp_max = 30にする
-        
+    if temp_max < 30: 	                            # もし、30以内ならば
+	    temp_max = 30                             # temp_max = 30にする
+		        
     #print ('Pixel Out(Temp):')
     #print (pixel)
         
@@ -85,24 +100,6 @@ while(True):  # 繰り返し処理
         break                       # 繰り返しを中断する
 
 cv2.destroyAllWindows()             # 指定された名前のウィンドウを破棄します。
-
-timecount += 1                                # timecountを1増やす
-# indexへAmbient_tempdata,interval,Object_tempdataを追加する
-Atemp_data.append(round(Atemp,2 ))
-interval.append(timecount)
-pixelOut_data.append(ObjectTemp_all)
-# dataへtimestamp,timecount,AmbientTemp,2,ObjectTemp1,2を入力する
-data = [timestamp,timecount,Atemp_data,pixelOut_data]	
-# data,("-----")を出力する
-#print('data',data)		
-#print('-----')
-# hikaru.csvファイルへ改行し、行を詰めて書き込みます
-# newlineはファイルの改行コードを指定する引数です
-# dataへ書き込みます
-writer = csv.writer(open('rion.csv','a',newline=''))
-writer.writerow(data)	
-# cpuに0.85秒間while処理を停止させ、他の処理をさせる　これがないと計算処理に大半を費やす
-time.sleep(0.75) 	   
 
     # ニアレストネイバー法:画像を拡大した際に最近傍にある画素をそのまま使う線形補間法です。
     # i=[100 200] i'=[100 200 200]
